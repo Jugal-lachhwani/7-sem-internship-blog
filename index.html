@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forecasting Floods on the Ganga at Patna | Jugal Lachhwani</title>
+<meta name="description" content="How I forecast water levels at the Gandhighat gauge on the Ganga and turned them into flood maps using deep learning, Sentinel-1 radar, SWOT and NISAR. 7th semester internship blog.">
+<meta property="og:title" content="Forecasting Floods on the Ganga at Patna">
+<meta property="og:description" content="Deep learning water level forecasts + satellite flood maps, checked with SWOT and NISAR.">
+<meta property="og:image" content="assets/workflow.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#16202b; --soft:#4a5866; --faint:#7a8794; --line:#e3e8ee; --paper:#fbfcfd;
+  --river:#0e5a8a; --river-2:#1f7fbf; --silt:#c98b2e; --wash:#eef5fa;
+  --serif:"Source Serif 4", Georgia, serif; --sans:Inter, system-ui, sans-serif; --mono:"JetBrains Mono", monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:19px;line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:var(--river);text-underline-offset:3px}
+a:hover{color:var(--river-2)}
+.wrap{max-width:720px;margin:0 auto;padding:0 22px}
+.wide{max-width:1000px;margin:0 auto;padding:0 22px}
+
+/* hero */
+header.hero{background:linear-gradient(180deg,#0b3c5d 0%,#0e5a8a 70%,#1a6fa5 100%);color:#fff;padding:72px 0 64px;position:relative;overflow:hidden}
+header.hero::after{content:"";position:absolute;left:-10%;right:-10%;bottom:-40px;height:120px;
+  background:radial-gradient(60% 100% at 50% 0%,rgba(255,255,255,.10),transparent 70%);}
+.kicker{font-family:var(--sans);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#bfe0f5;font-weight:600;margin:0 0 18px}
+h1{font-family:var(--serif);font-weight:600;font-size:clamp(34px,5.4vw,52px);line-height:1.12;margin:0 0 20px;letter-spacing:-.01em}
+.dek{font-size:21px;line-height:1.55;color:#e2f0fa;margin:0 0 28px;max-width:640px}
+.byline{font-family:var(--sans);font-size:14px;color:#cfe6f5;display:flex;flex-wrap:wrap;gap:6px 18px}
+.byline b{color:#fff;font-weight:600}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:-34px auto 0;position:relative;z-index:2}
+.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 16px 14px;box-shadow:0 6px 18px rgba(14,58,90,.08)}
+.stat .n{font-family:var(--sans);font-weight:700;font-size:26px;color:var(--river);line-height:1.1}
+.stat .l{font-family:var(--sans);font-size:13px;color:var(--soft);line-height:1.4;margin-top:6px}
+@media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+/* toc */
+nav.toc{font-family:var(--sans);font-size:14.5px;border-left:3px solid var(--river);padding:4px 0 4px 18px;margin:44px 0 8px}
+nav.toc p{margin:0 0 6px;font-weight:600;color:var(--soft);text-transform:uppercase;letter-spacing:.08em;font-size:12px}
+nav.toc ol{margin:0;padding-left:18px;columns:2;column-gap:28px}
+nav.toc li{margin:2px 0;break-inside:avoid}
+nav.toc a{text-decoration:none;color:var(--ink)}
+nav.toc a:hover{color:var(--river)}
+@media(max-width:600px){nav.toc ol{columns:1}}
+
+main section{padding-top:18px}
+h2{font-family:var(--sans);font-weight:700;font-size:27px;line-height:1.25;margin:52px 0 14px;letter-spacing:-.01em}
+h2 .num{color:var(--silt);font-weight:600;margin-right:8px}
+h3{font-family:var(--sans);font-weight:600;font-size:19px;margin:30px 0 8px}
+p{margin:0 0 18px}
+ul,ol{padding-left:24px;margin:0 0 18px}
+li{margin:4px 0}
+strong{font-weight:600}
+
+figure{margin:30px 0 34px}
+figure img{width:100%;height:auto;display:block;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:zoom-in}
+figure.narrow img{max-width:520px;margin:0 auto}
+figcaption{font-family:var(--sans);font-size:14px;color:var(--soft);line-height:1.5;margin-top:10px}
+figcaption b{color:var(--ink)}
+
+.callout{background:var(--wash);border:1px solid #d5e7f3;border-radius:12px;padding:18px 20px;margin:26px 0;font-size:18px}
+.callout p:last-child{margin-bottom:0}
+.callout .t{font-family:var(--sans);font-weight:700;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--river);margin-bottom:6px}
+
+.tbl{overflow-x:auto;margin:22px 0 28px;border:1px solid var(--line);border-radius:10px;background:#fff}
+table{border-collapse:collapse;width:100%;font-family:var(--sans);font-size:14.5px}
+th,td{padding:9px 10px;text-align:center;border-bottom:1px solid var(--line)}
+th{white-space:nowrap}
+th{background:#f3f7fa;font-weight:600;color:var(--soft);font-size:13px}
+td:first-child,th:first-child{text-align:left}
+tr:last-child td{border-bottom:0}
+tr.best td{background:#eef7ee;font-weight:600}
+.tcap{font-family:var(--sans);font-size:14px;color:var(--soft);margin:-14px 0 26px}
+
+.eq{font-family:var(--mono);font-size:15.5px;background:#f4f6f8;border-radius:8px;padding:12px 16px;margin:4px 0 20px;overflow-x:auto}
+
+.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:24px 0 30px;font-family:var(--sans)}
+.step{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;position:relative}
+.step .s{font-size:12px;font-weight:700;color:var(--silt);letter-spacing:.08em;text-transform:uppercase}
+.step .h{font-weight:600;font-size:15.5px;margin:4px 0 4px;line-height:1.3}
+.step .d{font-size:13.5px;color:var(--soft);line-height:1.45}
+@media(max-width:760px){.pipeline{grid-template-columns:1fr 1fr}}
+
+.refs{font-family:var(--sans);font-size:14px;color:var(--soft);line-height:1.55}
+.refs li{margin:6px 0}
+footer{border-top:1px solid var(--line);margin-top:64px;padding:28px 0 48px;font-family:var(--sans);font-size:14px;color:var(--faint)}
+footer a{color:var(--soft)}
+
+/* lightbox */
+#lb{position:fixed;inset:0;background:rgba(10,20,30,.88);display:none;align-items:center;justify-content:center;z-index:50;cursor:zoom-out;padding:20px}
+#lb img{max-width:100%;max-height:100%;border-radius:8px;background:#fff}
+#lb.on{display:flex}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="kicker">Internship Blog · Flood Inundation, Hydrology</p>
+    <h1>Forecasting Floods on the Ganga at Patna</h1>
+    <p class="dek">How I forecast the river level three days ahead with deep learning, turned that forecast into a flood map using ten years of satellite radar images, and then checked it against two new satellites, SWOT and NISAR.</p>
+    <div class="byline"><span>By <b>Jugal Lachhwani</b></span><span>B.Tech AIML, CSPIT, CHARUSAT</span><span>Internship with SAC (ISRO), Ahmedabad</span><span>November 2026</span></div>
+  </div>
+</header>
+
+<div class="wide">
+  <div class="stats">
+    <div class="stat"><div class="n">0.992</div><div class="l">NSE of the Day 1 water level forecast</div></div>
+    <div class="stat"><div class="n">3 days</div><div class="l">of lead time for a flood map</div></div>
+    <div class="stat"><div class="n">0.756</div><div class="l">average F1-score on 7 real flood events</div></div>
+    <div class="stat"><div class="n">0.83</div><div class="l">F1-score against an independent NISAR map</div></div>
+  </div>
+</div>
+
+<main class="wrap">
+
+<nav class="toc">
+  <p>In this post</p>
+  <ol>
+    <li><a href="#why">Why this problem</a></li>
+    <li><a href="#area">The study area</a></li>
+    <li><a href="#idea">The idea in one picture</a></li>
+    <li><a href="#data">Data I used</a></li>
+    <li><a href="#forecast">Forecasting the water level</a></li>
+    <li><a href="#explain">What the model looks at</a></li>
+    <li><a href="#library">From a number to a map</a></li>
+    <li><a href="#validate">Testing on real floods</a></li>
+    <li><a href="#swot">Checking with SWOT and NISAR</a></li>
+    <li><a href="#limits">Where it falls short</a></li>
+    <li><a href="#learned">What I learned</a></li>
+  </ol>
+</nav>
+
+<section id="why">
+<h2><span class="num">01</span>Why this problem</h2>
+<p>The Ganga near Patna floods in almost every monsoon. Big Himalayan tributaries such as the Ghaghara, Gandak, Kosi and Son pour water and silt into it upstream, and when the river rises, it spreads over farmland and low-lying parts of the city. In August 2016 the Gandhighat gauge in Patna recorded its highest level ever, 50.52 m.</p>
+<p>Most flood forecasting tells you <em>when</em> the river will cross a danger mark at one gauge. It does not tell you <em>where</em> the water will go. Physical flood models can answer that, but they need a detailed elevation model and a lot of field data that is costly and hard to get.</p>
+<p>So the question for my internship was simple: <strong>can we forecast the water level at one gauge, and then use past satellite images to show which areas will be under water, a few days before it happens?</strong></p>
+</section>
+
+<section id="area">
+<h2><span class="num">02</span>The study area</h2>
+<p>The work covers the stretch of the Ganga around Patna, Bihar, downstream of the Central Water Commission (CWC) gauge at Gandhighat. About 84 percent of Patna's yearly rain falls in the monsoon, which is exactly when the floods come.</p>
+<figure>
+  <img src="assets/study.jpg" alt="Map of the study area on the Ganga around Patna with the Gandhighat gauge" loading="lazy">
+  <figcaption><b>Study area.</b> The red box marks the reach where flood maps were made. The yellow dot is the Gandhighat gauge, and the black box is the SWOT satellite tile used later for checking.</figcaption>
+</figure>
+</section>
+
+<section id="idea">
+<h2><span class="num">03</span>The idea in one picture</h2>
+<p>The system has two parts that are built separately and then joined.</p>
+<div class="pipeline">
+  <div class="step"><div class="s">Step 1</div><div class="h">Last 7 days</div><div class="d">Water level, rainfall and soil moisture at Gandhighat</div></div>
+  <div class="step"><div class="s">Step 2</div><div class="h">Forecast</div><div class="d">Three deep learning models + a Ridge ensemble predict the next 3 days</div></div>
+  <div class="step"><div class="s">Step 3</div><div class="h">Category</div><div class="d">Each forecast level falls in one of five flood categories</div></div>
+  <div class="step"><div class="s">Step 4</div><div class="h">Flood map</div><div class="d">The matching map from the satellite library is the forecast flood extent</div></div>
+</div>
+<figure>
+  <img src="assets/workflow.jpg" alt="Workflow from inputs to deep learning models, Ridge ensemble, categorisation and inundation library" loading="lazy">
+  <figcaption><b>Workflow.</b> Seven days of inputs feed three models. Their forecasts go into a Ridge model, the result is put into a category, and the category picks a map from the inundation library.</figcaption>
+</figure>
+<p>The nice part of this design is that the expensive work, building the flood maps, is done once in advance. At forecast time, the system only has to run a small model and look up a map.</p>
+</section>
+
+<section id="data">
+<h2><span class="num">04</span>Data I used</h2>
+<div class="tbl"><table>
+<tr><th>Data</th><th>Source</th><th>Resolution</th><th>Period</th><th>Used for</th></tr>
+<tr><td>Water level</td><td>CWC, Gandhighat gauge</td><td>Point, daily</td><td>2011–2025</td><td>Model input, target, categories</td></tr>
+<tr><td>Rainfall</td><td>GSMaP-ISRO (MOSDAC)</td><td>10 × 10 km</td><td>2011–2025</td><td>Model input</td></tr>
+<tr><td>Soil moisture</td><td>SSM/I microwave</td><td>25 × 25 km</td><td>2011–2025</td><td>Model input</td></tr>
+<tr><td>Sentinel-1 SAR</td><td>ESA, C-band VV, via GEE</td><td>10 m</td><td>2015–2025</td><td>Flood library and testing</td></tr>
+<tr><td>NISAR</td><td>NASA-ISRO, L-band HH</td><td>10 m</td><td>31 Aug 2026</td><td>Independent map check</td></tr>
+<tr><td>SWOT</td><td>NASA PO.DAAC, Pass 245</td><td>Pixel cloud</td><td>Oct 2023–Mar 2025</td><td>Independent level check</td></tr>
+</table></div>
+<p>For the gauge, I kept only the 08:00 IST reading each day, because CWC records hourly in the monsoon but only three times a day the rest of the year. One reading per day keeps the series even across all seasons.</p>
+<figure>
+  <img src="assets/ts.jpg" alt="Daily water level, rainfall and soil moisture from 2011 to 2025" loading="lazy" style="max-width:640px;margin:0 auto">
+  <figcaption><b>Fifteen years of inputs.</b> All three rise together in the monsoon and fall in the dry months. Floods here only happen when all three are high.</figcaption>
+</figure>
+<p>One thing that surprised me: on the same day, soil moisture tracks the river much more closely (r = 0.90) than rainfall does (r = 0.52). That does not mean rain matters less. Rain comes in bursts and reaches the river days later, after soaking through the catchment. When I shifted rainfall back by up to 7 days, its correlation with water level rose from 0.54 to 0.66. That was a good reason to give the model a 7-day window.</p>
+<figure>
+  <img src="assets/lag.jpg" alt="Correlation of water level with lagged water level, rainfall and soil moisture" loading="lazy">
+  <figcaption><b>Lagged correlation.</b> Rainfall becomes more related to today's water level the further back you look, which fits the delayed response of a large river.</figcaption>
+</figure>
+</section>
+
+<section id="forecast">
+<h2><span class="num">05</span>Forecasting the water level</h2>
+<h3>Preparing the data</h3>
+<p>I split the 15 years in time order: 70 percent for training, 15 for validation and 15 for testing. The scaler was fitted only on the training part, so nothing from the test period leaked into training. Each sample has 7 days of the three inputs and the next 3 days of water level as the target.</p>
+<h3>Three base models</h3>
+<p>I trained three recurrent networks that are good at time series:</p>
+<ul>
+  <li><strong>LSTM</strong>, which keeps a separate long-term memory and uses gates to decide what to keep and what to forget.</li>
+  <li><strong>GRU</strong>, a lighter version with only two gates, which trains faster.</li>
+  <li><strong>BiLSTM</strong>, which reads the 7-day window both forwards and backwards before forecasting.</li>
+</ul>
+<p>All three use the same small setup: two layers with 16 and 8 units, dropout of 0.3, Adam optimiser, mean squared error loss, batch size 32 and early stopping after 10 epochs without improvement.</p>
+<h3>Joining them with Ridge regression</h3>
+<p>Each model makes different mistakes, so I stacked their nine outputs (3 models × 3 days) into a Ridge regression model. Ridge is plain linear regression with a penalty that stops it from leaning too hard on one input. That matters here, because the three forecasts are very similar to each other.</p>
+<div class="eq">min over W :  Σ (Oᵢ − Pᵢ)²  +  α Σ Wⱼ²      (α = 1)</div>
+<h3>Results on the test set</h3>
+<div class="tbl"><table>
+<tr><th>Model</th><th>Day 1 NSE</th><th>Day 1 MAE (m)</th><th>Day 2 NSE</th><th>Day 2 MAE (m)</th><th>Day 3 NSE</th><th>Day 3 MAE (m)</th></tr>
+<tr><td>GRU</td><td>0.9850</td><td>0.231</td><td>0.9640</td><td>0.357</td><td>0.9736</td><td>0.306</td></tr>
+<tr><td>LSTM</td><td>0.9792</td><td>0.274</td><td>0.9719</td><td>0.316</td><td>0.9741</td><td>0.301</td></tr>
+<tr><td>BiLSTM</td><td>0.9900</td><td>0.175</td><td>0.9869</td><td>0.196</td><td>0.9826</td><td>0.226</td></tr>
+<tr class="best"><td>Ridge ensemble</td><td>0.9921</td><td>0.148</td><td>0.9893</td><td>0.168</td><td>0.9855</td><td>0.195</td></tr>
+</table></div>
+<p class="tcap">NSE = Nash–Sutcliffe Efficiency (1 is perfect). MAE = mean absolute error.</p>
+<p>BiLSTM was the best single model, and the Ridge ensemble beat it on every day. Even three days ahead, the average error is under 20 cm.</p>
+<figure class="narrow">
+  <img src="assets/ridge.jpg" alt="Ridge forecasts versus observed water level for Day 1 to Day 3" loading="lazy">
+  <figcaption><b>Ridge ensemble on 2024–2025.</b> Left: forecast against observed water level over time. Right: scatter plots with correlation above 0.99 on all three days.</figcaption>
+</figure>
+</section>
+
+<section id="explain">
+<h2><span class="num">06</span>What the model looks at</h2>
+<p>A forecast that nobody trusts will not be used in an early warning system. So I used two explainable AI methods, <strong>SHAP</strong> and <strong>LIME</strong>, to see which inputs drive each forecast.</p>
+<div class="tbl"><table>
+<tr><th>Model</th><th>Water level (Day 1 → 3)</th><th>Rainfall (Day 1 → 3)</th><th>Soil moisture (Day 1 → 3)</th></tr>
+<tr><td>GRU</td><td>75.9% → 76.2%</td><td>21.1% → 20.8%</td><td>3.0% → 3.0%</td></tr>
+<tr><td>LSTM</td><td>73.6% → 67.8%</td><td>22.9% → 26.9%</td><td>3.5% → 5.3%</td></tr>
+<tr><td>BiLSTM</td><td>73.3% → 69.0%</td><td>19.9% → 23.3%</td><td>6.8% → 7.7%</td></tr>
+</table></div>
+<p class="tcap">Share of total SHAP importance for each input.</p>
+<p>Three things stood out:</p>
+<ol>
+  <li><strong>Past water level drives most of the forecast.</strong> A big river does not change direction overnight.</li>
+  <li><strong>Rainfall matters more the further ahead you forecast</strong>, at least for LSTM and BiLSTM. The GRU kept leaning on water level, which may be why it did worse on longer forecasts.</li>
+  <li><strong>Inside the ensemble, BiLSTM does most of the work</strong>, about 45 percent of the Ridge model's SHAP importance, which matches it being the most accurate.</li>
+</ol>
+<figure class="narrow">
+  <img src="assets/contrib.jpg" alt="Contribution of GRU, LSTM and BiLSTM to the Ridge ensemble" loading="lazy">
+  <figcaption><b>Who the ensemble listens to.</b> BiLSTM leads on all three days; GRU's share grows with lead time and LSTM's falls.</figcaption>
+</figure>
+<p>Looking at single flood events was even more useful. On days when the river was <em>rising</em>, rainfall had a much bigger say in the forecast than on days when it was steady near the peak. That is exactly how a hydrologist would expect the river to behave.</p>
+<figure>
+  <img src="assets/shap.jpg" alt="SHAP heatmaps for four flood events" loading="lazy">
+  <figcaption><b>SHAP for four events.</b> 11 July 2024 and 14 July 2025 are on the rising limb; 11 August 2024 and 5 August 2025 are near the peak. Rainfall stands out on the rising days.</figcaption>
+</figure>
+<div class="callout"><div class="t">SHAP vs LIME</div><p>LIME gave almost all the credit to water level for every event. It works by nudging inputs and watching the output, and since nudging water level moves the forecast the most, it misses the indirect effect of rain. For this problem SHAP told a more useful story.</p></div>
+</section>
+
+<section id="library">
+<h2><span class="num">07</span>From a number to a map</h2>
+<p>This is the part that turns a water level into a picture of the flood.</p>
+<h3>Five flood categories</h3>
+<p>CWC gives three levels for Gandhighat: warning (47.60 m), danger (48.60 m) and highest flood level (50.52 m). Those ranges are wide, so I split each in half to get five categories.</p>
+<div class="tbl"><table>
+<tr><th>Category</th><th>Water level (m)</th><th>Meaning</th></tr>
+<tr><td>1</td><td>47.10 – 47.60</td><td>Just below warning level</td></tr>
+<tr><td>2</td><td>47.60 – 48.10</td><td>Warning level crossed</td></tr>
+<tr><td>3</td><td>48.10 – 48.60</td><td>Close to danger level</td></tr>
+<tr><td>4</td><td>48.60 – 49.56</td><td>Danger level crossed</td></tr>
+<tr><td>5</td><td>49.56 – 50.52</td><td>Severe, near the record</td></tr>
+</table></div>
+<h3>Building the inundation library</h3>
+<p>Sentinel-1 is a radar satellite, so it sees through monsoon clouds, day or night. Calm water bounces the radar signal away and looks dark, while land looks brighter. For every Sentinel-1 image from 2015 to 2023, I used <strong>Otsu thresholding</strong> in Google Earth Engine to split water from land. Otsu picks a separate cut-off for each image, which helps because land brightness changes with crops and soil wetness through the year.</p>
+<p>Each water map was then filed under the category of the gauge reading on that date. Averaging the maps in each category gives the share of times each pixel was flooded, from 0 (never) to 1 (every time). A pixel counts as flooded for that category if it was wet in at least 40 percent of the maps.</p>
+<div class="eq">Pc(x, y) = (1 / Nc) · Σ Mc,i(x, y)</div>
+<figure class="narrow">
+  <img src="assets/library.jpg" alt="Stacked flood inundation library from Category 1 to Category 5" loading="lazy">
+  <figcaption><b>The inundation library.</b> One layer per category, clipped to a 5 km buffer around the river. Flooded area grows from 361 km² in Category 1 to 904 km² in Category 5.</figcaption>
+</figure>
+</section>
+
+<section id="validate">
+<h2><span class="num">08</span>Testing on real floods</h2>
+<p>The library was built only from 2015–2023, so I tested it on seven flood events from 2024 and 2025 that it had never seen. For each event, the Ridge forecast picked a category, the library gave a map, and I compared that map pixel by pixel with the Sentinel-1 flood map of the event. Permanent river water was masked out so it would not inflate the score.</p>
+<div class="tbl"><table>
+<tr><th>Event</th><th>Category</th><th>F1</th><th>Precision</th><th>Recall</th></tr>
+<tr><td>8–20 Aug 2024</td><td>4</td><td>0.692</td><td>0.582</td><td>0.854</td></tr>
+<tr><td>21 Aug–2 Sep 2024</td><td>4</td><td>0.782</td><td>0.753</td><td>0.813</td></tr>
+<tr><td>11–14 Sep 2024</td><td>2</td><td>0.680</td><td>0.787</td><td>0.598</td></tr>
+<tr><td>26–29 Sep 2024</td><td>3</td><td>0.722</td><td>0.944</td><td>0.585</td></tr>
+<tr><td>5–11 Aug 2025</td><td>5</td><td>0.863</td><td>0.816</td><td>0.916</td></tr>
+<tr><td>2–12 Sep 2025</td><td>4</td><td>0.838</td><td>0.906</td><td>0.779</td></tr>
+<tr><td>14–23 Sep 2025</td><td>4</td><td>0.717</td><td>0.678</td><td>0.761</td></tr>
+<tr class="best"><td>Average</td><td>–</td><td>0.756</td><td>0.781</td><td>0.758</td></tr>
+</table></div>
+<p>The bigger the flood, the better the match. The largest event, a Category 5 flood in August 2025, scored the best with an F1-score of 0.863. Smaller floods have fuzzier edges between wet and dry ground, so they are harder to match.</p>
+<figure class="narrow">
+  <img src="assets/val.jpg" alt="Agreement maps between library flood maps and observed flood extent for three events" loading="lazy">
+  <figcaption><b>Forecast vs observed.</b> Dark blue: correctly forecast flood. Red: forecast but dry. Yellow: flooded but missed. The August 2025 Category 5 event (bottom) has the least red and yellow.</figcaption>
+</figure>
+</section>
+
+<section id="swot">
+<h2><span class="num">09</span>Checking with SWOT and NISAR</h2>
+<p>Testing against the same kind of data you trained on only goes so far. So I checked the system against two newer satellites that have nothing to do with the gauge or with Sentinel-1.</p>
+<h3>SWOT: does the forecast level match the satellite level?</h3>
+<p>SWOT measures the height of the water surface from space. I took its pixel cloud for Pass 245, cleaned it with its quality flags, corrected for the geoid and tides, and read the water level at a virtual station at Gandhighat on every pass.</p>
+<figure>
+  <img src="assets/swot.jpg" alt="SWOT pixel cloud water surface elevation over the Ganga near Patna" loading="lazy">
+  <figcaption><b>SWOT on 10 October 2024.</b> The water surface drops smoothly from about 50 m upstream to about 38 m downstream, which is the expected slope of the river.</figcaption>
+</figure>
+<figure class="narrow">
+  <img src="assets/swotts.jpg" alt="Ridge Day 1 forecast compared with SWOT water level" loading="lazy">
+  <figcaption><b>Forecast vs SWOT.</b> Ridge Day 1 forecast (line) and SWOT water level (dots), October 2023 to March 2025. NSE 0.9803, MAE 0.232 m.</figcaption>
+</figure>
+<h3>NISAR: does the flood map match a different radar?</h3>
+<p>NISAR is the new NASA–ISRO radar mission. It uses L-band, a longer wavelength than Sentinel-1's C-band, so it is a truly independent check. On 31 August 2026 the river was in Category 4. I made a flood map from the NISAR image and compared it with the Category 4 library map.</p>
+<figure>
+  <img src="assets/nisar.jpg" alt="Agreement between Category 4 library map and NISAR flood map" loading="lazy">
+  <figcaption><b>Library vs NISAR, 31 August 2026.</b> F1-score of 0.83 with very little over-prediction.</figcaption>
+</figure>
+<div class="callout"><div class="t">Takeaway</div><p>Two satellites that never fed into the system, one measuring height and one measuring extent, both agree with it. That is the strongest evidence I have that the approach works.</p></div>
+</section>
+
+<section id="limits">
+<h2><span class="num">10</span>Where it falls short</h2>
+<ul>
+  <li><strong>Category edges.</strong> If the river sits right at the line between two categories, a small error can pick the wrong map. In two of five large floods, the first day was put in the wrong category, though the following days were right.</li>
+  <li><strong>New flood paths.</strong> The library only knows where the river has flooded before. If it breaks into a new area, the system cannot show it.</li>
+  <li><strong>Steps, not a slope.</strong> Real water levels change smoothly, but the maps come in five fixed steps, which can cause some over- or under-prediction near the ends of each step.</li>
+</ul>
+</section>
+
+<section id="learned">
+<h2><span class="num">11</span>What I learned</h2>
+<ul>
+  <li>A simple model on top of good models goes a long way. The Ridge ensemble added only a few lines of code and beat every deep network.</li>
+  <li>Explainability is not just for show. SHAP confirmed the model was using rainfall the way the river actually responds, which gave me more confidence than any error score.</li>
+  <li>Validation is worth the most effort. Checking against SWOT and NISAR, which use completely different data, was more convincing than any number of runs on the same dataset.</li>
+  <li>Satellite flood libraries are a cheap and practical way to get flood maps where detailed elevation data is not available.</li>
+</ul>
+<p>This work was done during my 7th semester internship (registered title: <em>Flood Inundation, Hydrology</em>) with the Land Hydrology Division, Space Applications Centre (ISRO), Ahmedabad. Many thanks to my guides, Dr. Amit Kumar Dubey and Prof. Dheeraj Shringi, for their support throughout.</p>
+</section>
+
+<section id="refs">
+<h2><span class="num">—</span>References</h2>
+<ol class="refs">
+  <li>S. Hochreiter and J. Schmidhuber, "Long Short-Term Memory", <i>Neural Computation</i>, 9(8), 1997.</li>
+  <li>K. Cho et al., "Learning Phrase Representations using RNN Encoder-Decoder for Statistical Machine Translation", EMNLP, 2014.</li>
+  <li>A. E. Hoerl and R. W. Kennard, "Ridge regression: biased estimation for nonorthogonal problems", <i>Technometrics</i>, 12(1), 1970.</li>
+  <li>M. C. Modi et al., "Deep learning based multi-model ensemble approach for flood forecasting over flood prone rivers of India", <i>Discover Water</i>, 6, 2026.</li>
+  <li>S. M. Lundberg and S.-I. Lee, "A unified approach to interpreting model predictions", NeurIPS, 2017.</li>
+  <li>M. T. Ribeiro, S. Singh and C. Guestrin, "Why should I trust you?", ACM SIGKDD, 2016.</li>
+  <li>N. Otsu, "A Threshold Selection Method from Gray-Level Histograms", <i>IEEE Trans. SMC</i>, 9(1), 1979.</li>
+  <li>N. Gorelick et al., "Google Earth Engine: Planetary-scale geospatial analysis for everyone", <i>Remote Sensing of Environment</i>, 202, 2017.</li>
+  <li>S. Biancamaria, D. P. Lettenmaier and T. M. Pavelsky, "The SWOT mission and its capabilities for land hydrology", <i>Surveys in Geophysics</i>, 37, 2016.</li>
+  <li>A. K. Dubey et al., "Evaluating SWOT capabilities for spatiotemporal river discharge estimation over the Ganga River in northern India", <i>J. Hydrologic Engineering</i>, 31(5), 2026.</li>
+  <li>A. Chowdhury, "Technical overview of ISRO and NASA's first joint mission: NISAR", <i>Acceleron Aerospace Journal</i>, 3(5), 2024.</li>
+</ol>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    Written by Jugal Lachhwani · 7th semester internship, CSPIT, CHARUSAT · Contains modified Copernicus Sentinel-1 data (2015–2025). SWOT data from NASA PO.DAAC, NISAR data from ASF DAAC, water level data from the Central Water Commission.
+  </div>
+</footer>
+
+<div id="lb" aria-hidden="true"><img alt=""></div>
+<script>
+(function(){
+  var lb=document.getElementById('lb'), im=lb.querySelector('img');
+  document.querySelectorAll('figure img').forEach(function(i){
+    i.addEventListener('click',function(){ im.src=i.src; im.alt=i.alt; lb.classList.add('on'); });
+  });
+  lb.addEventListener('click',function(){ lb.classList.remove('on'); });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape') lb.classList.remove('on'); });
+})();
+</script>
+</body>
+</html>
